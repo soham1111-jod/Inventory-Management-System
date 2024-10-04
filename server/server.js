@@ -1,3 +1,4 @@
+require('dotenv').config(); // This should be at the top
 const mysql = require('mysql2');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -5,18 +6,19 @@ const bcrypt = require('bcrypt');
 const cors = require('cors');
 const path = require('path'); // Add this line
 const app = express();
-const port = 5501;
+const port = process.env.PORT || 5501; // Use port from environment variables or default to 5501
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'public'))); // Adjust path to public folder
 
+// Create database connection using environment variables
 const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '123456789',
-    database: 'new_schema'
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME
 });
 
 db.connect((err) => {
@@ -33,16 +35,16 @@ app.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
 
     try {
-      
+
         const hashedPassword = await bcrypt.hash(password, 10);
 
-      
+
         const sql = 'INSERT INTO users (name, email, password) VALUES (?, ?, ?)';
         db.query(sql, [username, email, hashedPassword], (err, result) => {
             if (err) throw err;
 
-          
-            const userId = result.insertId; 
+
+            const userId = result.insertId;
             const storeTableName = `${username}_storeproduct`;
             const sellTableName = `${username}_sellproduct`;
 
@@ -99,7 +101,7 @@ app.post('/login', async (req, res) => {
 
         const user = results[0];
         const isMatch = await bcrypt.compare(password, user.password);
-        
+
         if (!isMatch) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
@@ -181,7 +183,7 @@ app.get('/storeproduct', (req, res) => {
 });
 
 app.get('/sellproduct', (req, res) => {
-    const username =  req.query.username;
+    const username = req.query.username;
     const sql = `SELECT * FROM  ${username}_sellproduct`;
     db.query(sql, (err, results) => {
         if (err) {
@@ -194,8 +196,8 @@ app.get('/sellproduct', (req, res) => {
 });
 
 app.post('/storeproduct', (req, res) => {
-    const { username, id, pname, ptype, price, qunti } = req.body;  
-    const tableName = `${username}_storeproduct`;  
+    const { username, id, pname, ptype, price, qunti } = req.body;
+    const tableName = `${username}_storeproduct`;
 
     const selectQuery = `SELECT qunti FROM ${tableName} WHERE id = ?`;
     db.query(selectQuery, [id], (err, results) => {
@@ -232,7 +234,7 @@ app.post('/storeproduct', (req, res) => {
 });
 
 app.post('/sellproduct', (req, res) => {
-    const { username, id } = req.body;  
+    const { username, id } = req.body;
     const storeTableName = `${username}_storeproduct`;
     const sellTableName = `${username}_sellproduct`;
 
@@ -287,7 +289,7 @@ app.post('/sellproduct', (req, res) => {
 });
 
 function moveToSellProduct(product, tableName, callback) {
-    const checkSellProductQuery = `SELECT * FROM ${tableName} WHERE id = ?`;
+    const checkSellProductQuery = ` SELECT * FROM ${tableName} WHERE id = ?`;
     db.query(checkSellProductQuery, [product.id], (err, result) => {
         if (err) return callback(err);
 
@@ -308,20 +310,21 @@ function moveToSellProduct(product, tableName, callback) {
 }
 
 app.get('/user', (req, res) => {
+    const username = req.query.username;
     const { name } = req.query;
-    let sql = 'SELECT * FROM storeproduct WHERE pname LIKE ?';
+    let sql = `SELECT * FROM ${username}_storeproduct WHERE pname LIKE ?`;
     db.query(sql, [`%${name}%`], (err, results) => {
-      if (err) {
-        throw err;
-      }
-      res.json(results);
+        if (err) {
+            throw err;
+        }
+        res.json(results);
     });
-  });
+});
 
 
-// app.listen(port, () => {
-//     console.log(`Server running on port ${port}`);
-// });
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
 
 
-app.listen(5501, '0.0.0.0'); // Replace 5500 with your desired port
+// app.listen(5501, '0.0.0.0'); // Replace 5500 with your desired port
